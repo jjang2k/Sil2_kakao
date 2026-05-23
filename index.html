@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>카톡 방장 비서 - 채팅 요약 & 액션 아이템</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+    margin: 0;
+    background: #f5f6f8;
+    color: #1a1a1a;
+    line-height: 1.55;
+  }
+  header {
+    background: #fee500;
+    padding: 18px 28px;
+    border-bottom: 1px solid #e3cf00;
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+  header .sub { font-size: 13px; color: #5a5400; margin-top: 4px; }
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 24px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .row > * { flex: 0 0 auto; }
+  label { font-size: 13px; color: #555; }
+  input[type="password"], input[type="text"], select {
+    padding: 8px 12px;
+    border: 1px solid #d0d4dc;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fff;
+  }
+  input[type="password"], input[type="text"] { min-width: 280px; }
+  button {
+    padding: 9px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #3b82f6;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover { background: #2563eb; }
+  button:disabled { background: #cbd5e1; cursor: not-allowed; }
+  button.secondary { background: #e5e7eb; color: #1a1a1a; }
+  button.secondary:hover { background: #d1d5db; }
+  .drop-zone {
+    border: 2px dashed #cbd5e1;
+    border-radius: 10px;
+    padding: 36px;
+    text-align: center;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .drop-zone.dragover { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; }
+  .drop-zone input { display: none; }
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .meta-grid .stat {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .meta-grid .stat .label { font-size: 12px; color: #64748b; }
+  .meta-grid .stat .value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .filter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .filter-row .group { display: flex; flex-direction: column; gap: 6px; }
+  .checkboxes { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+  .checkboxes label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .token-bar {
+    margin-top: 10px;
+    padding: 10px 14px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #475569;
+  }
+  .token-bar.warn { background: #fef3c7; color: #92400e; }
+  .token-bar.danger { background: #fee2e2; color: #991b1b; }
+  .hidden { display: none !important; }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 6px;
+  }
+  .badge.high { background: #fee2e2; color: #991b1b; }
+  .badge.med { background: #fef3c7; color: #92400e; }
+  .badge.low { background: #dbeafe; color: #1e40af; }
+  .action-group { margin-bottom: 16px; }
+  .action-group h3 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #334155;
+  }
+  .action-item {
+    background: #f8fafc;
+    border-left: 3px solid #94a3b8;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .action-item.high { border-left-color: #ef4444; }
+  .action-item.med { border-left-color: #f59e0b; }
+  .action-item.low { border-left-color: #3b82f6; }
+  .action-item .desc { font-size: 14px; }
+  .action-item .refs {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #64748b;
+    font-style: italic;
+  }
+  ul.topic-list { padding-left: 20px; margin: 0; }
+  ul.topic-list li { margin-bottom: 6px; font-size: 14px; }
+  .summary-text { font-size: 14px; line-height: 1.7; }
+  .loading {
+    display: flex; align-items: center; gap: 10px;
+    color: #475569; font-size: 14px;
+  }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid #cbd5e1;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error {
+    background: #fee2e2;
+    color: #991b1b;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  .footer-note {
+    text-align: center; font-size: 12px; color: #94a3b8; margin: 20px 0;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>🍯 카톡 방장 비서</h1>
+  <div class="sub">CSV를 업로드하면 채팅을 요약하고, 방장이 처리할 액션 아이템을 뽑아드려요.</div>
+</header>
+<main>
+
+  <!-- 1. API 키 설정 -->
+  <section class="card" id="card-api">
+    <h2>① OpenAI API 키</h2>
+    <div class="row">
+      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off" />
+      <select id="model">
+        <option value="gpt-5-mini">gpt-5-mini (기본·저렴)</option>
+        <option value="gpt-4o-mini">gpt-4o-mini</option>
+      </select>
+      <button id="saveKey">저장</button>
+      <button id="resetKey" class="secondary">초기화</button>
+    </div>
+    <div id="keyStatus" style="margin-top: 10px; font-size: 13px; color: #64748b;"></div>
+  </section>
+
+  <!-- 2. CSV 업로드 -->
+  <section class="card" id="card-upload">
+    <h2>② 카카오톡 CSV 업로드</h2>
+    <label class="drop-zone" id="dropZone">
+      <input type="file" id="csvFile" accept=".csv" />
+      <div>📁 CSV 파일을 끌어다 놓거나, 클릭해서 선택하세요</div>
+      <div style="font-size: 12px; margin-top: 6px;">예: <code>KakaoTalk_Chat_xxx.csv</code> (Date, User, Message 컬럼)</div>
+    </label>
+    <div id="parseError" class="error hidden" style="margin-top: 12px;"></div>
+  </section>
+
+  <!-- 3. 메타 + 필터 -->
+  <section class="card hidden" id="card-meta">
+    <h2>③ 분석 범위</h2>
+    <div class="meta-grid" id="metaGrid"></div>
+
+    <div class="filter-row">
+      <div class="group">
+        <label for="timeRange">⏱️ 시간 범위 (마지막 메시지 기준)</label>
+        <select id="timeRange">
+          <option value="6">최근 6시간</option>
+          <option value="24" selected>최근 24시간</option>
+          <option value="72">최근 3일</option>
+          <option value="168">최근 7일</option>
+          <option value="720">최근 30일</option>
+          <option value="0">전체</option>
+        </select>
+      </div>
+      <div class="group">
+        <label>🔇 노이즈 필터</label>
+        <div class="checkboxes">
+          <label><input type="checkbox" id="filterJoin" checked /> 입장/퇴장 메시지 제외</label>
+          <label><input type="checkbox" id="filterMedia" checked /> "사진/동영상/이모티콘" 단독 메시지 제외</label>
+          <label><input type="checkbox" id="filterUrlOnly" checked /> URL만 있는 메시지 제외</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="token-bar" id="tokenBar">필터 적용 중...</div>
+
+    <div style="margin-top: 14px;">
+      <button id="analyze">🔍 분석 시작</button>
+    </div>
+  </section>
+
+  <!-- 4. 결과 -->
+  <section class="card hidden" id="card-result">
+    <h2>④ 분석 결과</h2>
+    <div id="resultBody"></div>
+  </section>
+
+  <div class="footer-note">MVP 프로토타입 · 데이터는 브라우저 밖으로 나가지 않습니다 (OpenAI 호출 제외)</div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
