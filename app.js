@@ -6,6 +6,7 @@ const state = {
 };
 
 // ===== 유틸 =====
+// 순수 함수(estimateTokens, parseKakaoDate, pad2, fmtShort, mapColumns, escapeHtml)는 lib.js에서 전역으로 정의됨.
 const $ = (id) => document.getElementById(id);
 const LS_KEY = "openai_api_key";
 const LS_MODEL = "openai_model";
@@ -13,34 +14,6 @@ const LS_MODEL = "openai_model";
 // 약 100k 토큰 한도. 한글 1자 ≈ 1.5~2 토큰으로 보고 보수적으로 환산.
 const TOKEN_HARD_LIMIT = 100_000;
 const TOKEN_WARN_LIMIT = 60_000;
-
-function estimateTokens(text) {
-  // 영어/숫자/공백은 ~0.3 토큰/문자, 한글/CJK는 ~1 토큰/문자에 가까움.
-  // MVP라 간단히: 한글이 많으면 길이 * 0.9, 그 외는 길이 * 0.4
-  let cjk = 0;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code >= 0x3000 && code <= 0x9fff) cjk++;
-    else if (code >= 0xac00 && code <= 0xd7af) cjk++;
-  }
-  const ratio = cjk / Math.max(text.length, 1);
-  const perChar = 0.4 + ratio * 0.6; // 0.4 ~ 1.0
-  return Math.ceil(text.length * perChar);
-}
-
-function parseKakaoDate(s) {
-  // "2026.4.30 9:53" -> Date
-  const m = String(s).trim().match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})\s+(\d{1,2}):(\d{2})$/);
-  if (!m) return null;
-  const [, y, mo, d, h, mi] = m;
-  return new Date(+y, +mo - 1, +d, +h, +mi);
-}
-
-function pad2(n) { return n < 10 ? "0" + n : "" + n; }
-
-function fmtShort(d) {
-  return `${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
 
 // ===== API 키 관리 =====
 // 우선순위: .env (페이지 로드 시 자동) > localStorage > 수동 입력
@@ -157,16 +130,6 @@ function handleFile(file) {
 function showParseError(msg) {
   $("parseError").textContent = msg;
   $("parseError").classList.remove("hidden");
-}
-
-// 헤더 휴리스틱 매핑
-function mapColumns(headers) {
-  const find = (re) => headers.find((h) => re.test(h));
-  return {
-    date: find(/^(date|날짜|time|일시)$/i) || headers[0],
-    user: find(/^(user|name|sender|이름|발신자|작성자)$/i) || headers[1],
-    message: find(/^(message|메시지|content|내용)$/i) || headers[2],
-  };
 }
 
 function onParsed(results) {
@@ -458,14 +421,6 @@ function renderActionGroup(title, items, mapper) {
         })
         .join("")}
     </div>`;
-}
-
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 // ===== 초기화 =====

@@ -22,7 +22,11 @@ CSV file ─► PapaParse (CDN) ─► parseKakaoDate + column auto-map
                           summary / topics / 4 action categories
 ```
 
-## Modules (all in `app.js`)
+## Modules
+
+`lib.js` holds DOM-free pure functions (`parseKakaoDate`, `estimateTokens`, `mapColumns`, `escapeHtml`, `pad2`, `fmtShort`). It is loaded before `app.js` as a classic script — its top-level `function` declarations become globals that `app.js` references. The split exists so Vitest can load `lib.js` via `node:vm` without touching the DOM-bound code in `app.js`.
+
+`app.js` holds everything else: state, DOM wiring, fetch I/O, rendering.
 
 ### Key resolution — `loadKeyUI`, `loadEnvFile`
 
@@ -101,4 +105,4 @@ No reactive framework — DOM updates are pushed imperatively from `applyFilters
 - **PapaParse 5.4.1** via jsDelivr CDN. Only used inside `handleFile`.
 - **OpenAI Chat Completions API** (`https://api.openai.com/v1/chat/completions`). Called once per analysis with `fetch`. Errors are surfaced verbatim from the response body where possible (401 / 429 / 5xx all routed through the same `catch`).
 
-No other runtime dependencies. No `node_modules`, no `package.json`.
+No other runtime dependencies at app level — `package.json` exists solely for the Vitest dev dependency (test-time only, never loaded by the browser).

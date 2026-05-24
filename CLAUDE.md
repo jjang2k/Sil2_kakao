@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MVP prototype: static HTML + JS web app that ingests a KakaoTalk CSV export and uses the OpenAI API to produce a chat summary plus action items for the chat room owner (방장). Korean-first UI.
 
-**Intentional non-choices**: no backend, no database, no build step, no bundler, no package.json, no test framework, no lint config. Two-file app (`index.html` + `app.js`). Treat additions of any of these as scope creep — confirm with the user before introducing tooling.
+**Intentional non-choices**: no backend, no database, no build step, no bundler, no lint config. Three-file app (`index.html` + `lib.js` + `app.js`). `package.json` exists only to declare Vitest as a dev dependency for unit testing the pure functions in `lib.js`; nothing it pulls in is loaded by the browser. Treat additions of any other tooling (build step, bundler, lint, framework) as scope creep — confirm with the user.
 
 ## Run / develop
 
@@ -17,9 +17,17 @@ python3 -m http.server 8765      # serve current dir
 
 `file://` is not supported — the app uses `fetch("/.env")` and `fetch("https://api.openai.com/...")` which require an HTTP origin.
 
-No tests, no lint. Verify changes by reloading the browser and walking the flow with the bundled sample CSV (`KakaoTalk_Chat_[실밸개발자] 바이브코딩 클럽_*.csv`, ~27k rows / 3.1MB).
+Unit tests cover the pure functions in `lib.js`:
 
-JS-only syntax check: `node --check app.js`.
+```bash
+npm install                      # one-time, installs Vitest
+npm test                         # vitest run (CI mode)
+npm run test:watch               # interactive
+```
+
+Tests live in `tests/lib.test.js` and load `lib.js` via `node:vm` so the same file can stay browser-loadable. **DOM-bound code in `app.js` is intentionally not tested** — verify those changes by reloading the browser and walking the flow with the bundled sample CSV (`KakaoTalk_Chat_[실밸개발자] 바이브코딩 클럽_*.csv`, ~27k rows / 3.1MB).
+
+JS-only syntax check: `node --check app.js && node --check lib.js`.
 
 ## Architecture
 
@@ -27,7 +35,7 @@ See **[architecture.md](./architecture.md)** for the full data flow diagram, per
 
 Quick orientation before diving in:
 
-- All logic is in `app.js`; UI and styles are inline in `index.html`.
+- Pure functions are in `lib.js` (testable); DOM-bound logic and state are in `app.js`; UI and styles are inline in `index.html`. `lib.js` must remain DOM-free and module-syntax-free so it loads both as a browser `<script>` and via Vitest's `node:vm`.
 - Pipeline: CSV → PapaParse → filter → format → OpenAI (JSON mode) → render.
 - The system prompt JSON schema and `renderResult` are **coupled** — change them together.
 - `parseKakaoDate` is required for the `YYYY.M.D H:mm` format; the native `Date` parser does not accept it.
@@ -35,7 +43,7 @@ Quick orientation before diving in:
 ## Conventions specific to this repo
 
 - All styles live inline in `<style>` inside `index.html`. No separate CSS file.
-- All logic in plain ES (no modules, no transpile). DOM accessed via the `$(id)` helper.
+- Plain ES, no modules, no transpile. DOM accessed via the `$(id)` helper.
 - UI strings are Korean. Keep that — the target user is a Korean-speaking 방장.
 - Commit message style (single existing example): short imperative subject, no conventional-commits prefix.
 
