@@ -6,7 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MVP prototype: static HTML + JS web app that ingests a KakaoTalk CSV export and uses the OpenAI API to produce a chat summary plus action items for the chat room owner (방장). Korean-first UI.
 
-**Intentional non-choices**: no backend, no database, no build step, no bundler, no lint config. Three-file app (`index.html` + `lib.js` + `app.js`). `package.json` exists only to declare Vitest as a dev dependency for unit testing the pure functions in `lib.js`; nothing it pulls in is loaded by the browser. Treat additions of any other tooling (build step, bundler, lint, framework) as scope creep — confirm with the user.
+**Project policy** (some enforced by tooling):
+
+- **Static front-end** — no backend, no database, no build step, no bundler, no lint config. Three browser-loaded files (`index.html` + `lib.js` + `app.js`). The only runtime dep is the PapaParse CDN; nothing from `node_modules` is shipped.
+- **`package.json` is test-time-only** — declares Vitest as a dev dependency. Never imported from `index.html`.
+- **Test-first for JS** — Vitest covers pure functions in `lib.js`. A PreToolUse TDD-guard hook (see [TDD guard](#tdd-guard-hook) below) enforces test-file presence before any `.js`/`.jsx`/`.ts`/`.tsx` edit.
+
+Treat additions of build step, bundler, lint, framework, or backend as scope creep — confirm with the user.
 
 ## Run / develop
 
@@ -25,7 +31,7 @@ npm test                         # vitest run (CI mode)
 npm run test:watch               # interactive
 ```
 
-Tests live in `tests/lib.test.js` and load `lib.js` via `node:vm` so the same file can stay browser-loadable. **DOM-bound code in `app.js` is intentionally not tested** — verify those changes by reloading the browser and walking the flow with the bundled sample CSV (`KakaoTalk_Chat_[실밸개발자] 바이브코딩 클럽_*.csv`, ~27k rows / 3.1MB).
+Tests live in `__tests__/lib.test.js` and load `lib.js` via `node:vm` so the same file can stay browser-loadable. DOM-bound code in `app.js` has no unit tests — verify those changes by reloading the browser and walking the flow with the bundled sample CSV (`KakaoTalk_Chat_[실밸개발자] 바이브코딩 클럽_*.csv`, ~27k rows / 3.1MB). Note the TDD-guard interaction below: editing `app.js` will be blocked until it has a test file or is exempted.
 
 JS-only syntax check: `node --check app.js && node --check lib.js`.
 
@@ -46,6 +52,29 @@ Quick orientation before diving in:
 - Plain ES, no modules, no transpile. DOM accessed via the `$(id)` helper.
 - UI strings are Korean. Keep that — the target user is a Korean-speaking 방장.
 - Commit message style (single existing example): short imperative subject, no conventional-commits prefix.
+
+## TDD guard hook
+
+`.claude/settings.json` registers a `PreToolUse` hook (`.claude/hooks/tdd-guard.sh`) that runs before every Edit / Write / MultiEdit tool call and **denies** the call when an implementation file has no discoverable test.
+
+**Triggers on**: `.js`, `.jsx`, `.ts`, `.tsx`.
+
+**Test discovery paths** (checked relative to the edited file):
+
+- sibling `<base>.test.<ext>` / `<base>.spec.<ext>`
+- `<dir>/__tests__/<base>.test.<ext>` / `<dir>/__tests__/<base>.spec.<ext>`
+- `<parent>/__tests__/<base>.test.<ext>` / `<parent>/__tests__/<base>.spec.<ext>`
+- `<repo-root>/src/__tests__/<base>.test.<ext>` / ...spec.<ext>
+
+**Exempt** (never denied): `*test*` / `*spec*` paths; `.json` / `.css` / `.scss` / `.md` / `.yml` / `.yaml` / `.env*` / `*.config.*`; `types/`, `*.d.ts`; Next.js routing files (`layout.tsx`, `page.tsx`, etc.). Anything else with a non-JS extension (e.g. `.html`) is not matched by the trigger and passes through.
+
+**Repo layout**: Tests live in `__tests__/` so the hook's `<repo-root>/__tests__/<base>.test.js` lookup succeeds for `lib.js`. Vitest auto-discovers this directory.
+
+**Open item — `app.js`**: `app.js` has no unit tests (DOM glue, not unit-testable as-is) and the hook will deny edits to it. When you next need to edit `app.js`, pick one and apply it consciously:
+
+- Add an `app.js` exemption in `.claude/hooks/tdd-guard.sh` (case list).
+- Add a stub `__tests__/app.test.js` that imports nothing — only satisfies the discovery check.
+- Extract the bit you're changing into `lib.js` (drives logic toward the tested module).
 
 ## Git hygiene
 
